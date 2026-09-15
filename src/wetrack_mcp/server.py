@@ -48,6 +48,7 @@ async def get_server_status() -> str:
         "",
         "## Available Tool Modules",
         "- 🔐 Auth (7 tools)",
+        "- 🔑 OAuth / SSO (3 tools)",
         "- 🎫 Tickets (13 tools)",
         "- 📁 Projects + Files (17 tools)",
         "- 🏃 Sprints (5 tools)",
@@ -59,8 +60,10 @@ async def get_server_status() -> str:
         "- 🔍 Search (1 tool)",
         "- 🗂️ Master Data (17 tools)",
         "- 🧩 Metadata Fields (6 tools)",
+        "- 📤 Uploads (2 tools)",
+        "- ⚡ Webhooks & Cron (3 tools)",
         "",
-        "**Total: ~76 tools**",
+        "**Total: 110 tools**",
     ]
     return "\n".join(status_lines)
 
