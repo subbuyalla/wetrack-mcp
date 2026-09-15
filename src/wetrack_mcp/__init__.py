@@ -1,0 +1,1 @@
+"""WeTrack Enterprise MCP Server."""

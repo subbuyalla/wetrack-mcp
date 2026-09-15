@@ -1,0 +1,22 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "wetrack-mcp"
+version = "1.0.0"
+description = "WeTrack Enterprise MCP Server — exposes WeTrack/VTrack REST API as MCP tools"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "mcp[cli]>=1.0.0",
+    "httpx>=0.27.0",
+    "pydantic>=2.0.0",
+    "python-dotenv>=1.0.0",
+]
+
+[project.scripts]
+wetrack-mcp = "wetrack_mcp.server:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/wetrack_mcp"]

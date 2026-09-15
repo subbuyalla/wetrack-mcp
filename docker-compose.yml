@@ -1,0 +1,20 @@
+services:
+  wetrack-mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: wetrack-mcp
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - WETRACK_BASE_URL=${WETRACK_BASE_URL:-https://wetrack-two.vercel.app}
+      - WETRACK_EMAIL=${WETRACK_EMAIL}
+      - WETRACK_PASSWORD=${WETRACK_PASSWORD}
+      - WETRACK_TOKEN=${WETRACK_TOKEN:-}
+      - WETRACK_AUTH_KEY=${WETRACK_AUTH_KEY:-}
+      - MCP_TRANSPORT=sse
+      - MCP_HOST=0.0.0.0
+      - MCP_PORT=8000
+    env_file:
+      - .env
