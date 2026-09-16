@@ -1,0 +1,216 @@
+openapi: 3.1.0
+info:
+  title: WeTrack Enterprise API
+  description: API for managing WeTrack projects, tickets, sprints, users, and dashboards.
+  version: 1.0.0
+servers:
+  - url: https://wetrack-two.vercel.app
+    description: WeTrack Staging Environment
+
+paths:
+  /api/tickets:
+    get:
+      operationId: listTickets
+      summary: List tickets
+      description: Retrieve and filter tickets in WeTrack.
+      parameters:
+        - name: project_id
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Project UUID to filter tickets by.
+        - name: type
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Ticket type (EPIC, STORY, TASK, BUG).
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 20
+          description: Number of tickets to return.
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+
+    post:
+      operationId: createTicket
+      summary: Create a work item ticket
+      description: Create a new EPIC, STORY, TASK, or BUG work item.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - type
+                - title
+                - summary
+                - projectId
+                - priorityId
+              properties:
+                type:
+                  type: string
+                  enum: [EPIC, STORY, TASK, BUG]
+                title:
+                  type: string
+                summary:
+                  type: string
+                projectId:
+                  type: string
+                priorityId:
+                  type: integer
+                  description: Priority ID (1=Urgent, 2=High, 3=Normal, 4=Low)
+                description:
+                  type: string
+      responses:
+        '200':
+          description: Ticket created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /api/tickets/{ticket_id}:
+    get:
+      operationId: getTicket
+      summary: Get ticket details
+      description: Retrieve full details of a ticket by UUID or ID.
+      parameters:
+        - name: ticket_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+
+    put:
+      operationId: updateTicket
+      summary: Update a ticket
+      description: Update ticket fields such as title, status, or description.
+      parameters:
+        - name: ticket_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                description:
+                  type: string
+                request_status_id:
+                  type: integer
+                request_priority_id:
+                  type: integer
+      responses:
+        '200':
+          description: Ticket updated successfully
+
+  /api/tickets/{ticket_id}/comments:
+    get:
+      operationId: getTicketComments
+      summary: Get comments on a ticket
+      parameters:
+        - name: ticket_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+
+    post:
+      operationId: addTicketComment
+      summary: Add a comment to a ticket
+      parameters:
+        - name: ticket_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - comment
+              properties:
+                comment:
+                  type: string
+      responses:
+        '200':
+          description: Comment added successfully
+
+  /api/projects:
+    get:
+      operationId: listProjects
+      summary: List all projects
+      description: Retrieve all projects available in WeTrack.
+      responses:
+        '200':
+          description: Successful response
+
+  /api/projects/{project_id}:
+    get:
+      operationId: getProject
+      summary: Get project details
+      parameters:
+        - name: project_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+
+  /api/sprints:
+    get:
+      operationId: listSprints
+      summary: List sprints
+      parameters:
+        - name: projectId
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+
+  /api/users/current-user:
+    get:
+      operationId: getCurrentUser
+      summary: Get current logged in user
+      responses:
+        '200':
+          description: Successful response
+
+  /api/analytics/dashboard:
+    get:
+      operationId: getDashboardAnalytics
+      summary: Get executive dashboard analytics
+      responses:
+        '200':
+          description: Successful response
