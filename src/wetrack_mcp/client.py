@@ -31,17 +31,40 @@ async def make_request(
         try:
             await auth_manager.ensure_authenticated()
         except RuntimeError:
-            # Not authenticated and no credentials — guide user to SSO
-            return {
-                "success": False,
-                "authenticated": False,
-                "message": (
-                    "⚠️ You are not signed in to WeTrack. "
-                    "Please call the 'wetrack_microsoft_sso_login' tool to sign in "
-                    "with your Microsoft account. Your browser will open automatically."
-                ),
-                "action_required": "Call wetrack_microsoft_sso_login to authenticate via Microsoft SSO.",
-            }
+            # No credentials — automatically start Microsoft SSO flow
+            try:
+                import httpx as _httpx
+                async with _httpx.AsyncClient(timeout=10.0) as _c:
+                    _r = await _c.get(f"{config.BASE_URL}/api/auth/microsoft/sign-in")
+                    _data = _r.json()
+                ms_url = _data.get("url", "")
+            except Exception:
+                ms_url = ""
+
+            if ms_url:
+                from .sso import start_sso_flow
+                port, _ = start_sso_flow(ms_url, lambda t: setattr(auth_manager, "token", t))
+                return {
+                    "success": False,
+                    "authenticated": False,
+                    "sso_started": True,
+                    "message": (
+                        f"🔐 Microsoft login opened in your browser automatically. "
+                        f"After signing in, open the helper page at "
+                        f"http://127.0.0.1:{port}/ and paste your accessToken cookie to complete login. "
+                        f"Then retry your request."
+                    ),
+                    "helper_url": f"http://127.0.0.1:{port}/",
+                }
+            else:
+                return {
+                    "success": False,
+                    "authenticated": False,
+                    "message": (
+                        "⚠️ Not signed in to WeTrack. "
+                        "Please call wetrack_microsoft_sso_login to authenticate."
+                    ),
+                }
 
     # Remove None values from params
     if params:
