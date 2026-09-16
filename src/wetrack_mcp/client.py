@@ -41,7 +41,17 @@ async def make_request(
             except Exception:
                 ms_url = ""
 
-            if ms_url:
+            if not ms_url:
+                return {
+                    "success": False,
+                    "authenticated": False,
+                    "message": "⚠️ Not signed in to WeTrack and Microsoft SSO is unavailable. Check WETRACK_BASE_URL.",
+                }
+
+            is_local = config.MCP_TRANSPORT == "stdio"
+
+            if is_local:
+                # LOCAL: auto-open browser + serve helper page on localhost
                 from .sso import start_sso_flow
                 port, _ = start_sso_flow(ms_url, lambda t: setattr(auth_manager, "token", t))
                 return {
@@ -49,21 +59,28 @@ async def make_request(
                     "authenticated": False,
                     "sso_started": True,
                     "message": (
-                        f"🔐 Microsoft login opened in your browser automatically. "
-                        f"After signing in, open the helper page at "
-                        f"http://127.0.0.1:{port}/ and paste your accessToken cookie to complete login. "
-                        f"Then retry your request."
+                        f"🔐 Your browser has been opened for Microsoft login. "
+                        f"After signing in, open http://127.0.0.1:{port}/ "
+                        "and paste your accessToken cookie to complete login. "
+                        "Then retry your request."
                     ),
                     "helper_url": f"http://127.0.0.1:{port}/",
                 }
             else:
+                # REMOTE (EC2/SSE): return the login URL — user opens it manually
+                # then calls wetrack_set_token with the resulting accessToken cookie
                 return {
                     "success": False,
                     "authenticated": False,
+                    "sso_required": True,
                     "message": (
-                        "⚠️ Not signed in to WeTrack. "
-                        "Please call wetrack_microsoft_sso_login to authenticate."
+                        "🔐 Not signed in to WeTrack. "
+                        "Open the Microsoft login URL below in your browser, complete sign-in, "
+                        "then copy your accessToken cookie (F12 → Application → Cookies → vtrack-internal.vercel.app) "
+                        "and call wetrack_set_token with the value. Then retry your request."
                     ),
+                    "microsoft_login_url": ms_url,
+                    "next_step": "Call wetrack_set_token with your accessToken cookie value after signing in.",
                 }
 
     # Remove None values from params
