@@ -110,13 +110,31 @@ The MCP SSE server listens on port `8000`:
 
 ---
 
-## 🤖 Claude Desktop Setup
+## 🔌 Connecting to Any AI Platform
 
-Add this to your Claude Desktop `claude_desktop_config.json`:
+The WeTrack MCP server is universal and connects to all major AI assistants and IDEs:
 
-**Windows path:** `%APPDATA%\Claude\claude_desktop_config.json`  
-**macOS path:** `~/Library/Application Support/Claude/claude_desktop_config.json`
+### 1. Claude Desktop
 
+#### Option A: Connect to Cloud EC2 Deployment (Zero local setup for teammates)
+Open `%APPDATA%\Claude\claude_desktop_config.json` (or click **Settings → Developer → Edit config**):
+```json
+{
+  "mcpServers": {
+    "wetrack": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcp-remote",
+        "http://<YOUR_EC2_PUBLIC_IP>:8000/sse",
+        "--allow-http"
+      ]
+    }
+  }
+}
+```
+
+#### Option B: Run Locally on your computer (stdio)
 ```json
 {
   "mcpServers": {
@@ -125,7 +143,7 @@ Add this to your Claude Desktop `claude_desktop_config.json`:
       "args": [
         "run",
         "--directory",
-        "d:/mcp for wetrak",
+        "/path/to/wetrack-mcp",
         "python",
         "-m",
         "wetrack_mcp.server"
@@ -139,8 +157,87 @@ Add this to your Claude Desktop `claude_desktop_config.json`:
   }
 }
 ```
+*Restart Claude Desktop after saving.*
 
-Restart Claude Desktop after saving.
+---
+
+### 2. Cursor IDE
+
+Cursor supports native remote SSE connections with zero Node.js or local installation required:
+
+1. Open **Cursor Settings** (`Ctrl + Shift + J` or `Cmd + Shift + J`) → **MCP**.
+2. Click **+ Add New MCP Server**.
+3. Fill in:
+   * **Name:** `wetrack`
+   * **Type:** `sse`
+   * **URL:** `http://<YOUR_EC2_PUBLIC_IP>:8000/sse`
+4. Click **Add**. All 110 tools will instantly show green in Composer!
+
+---
+
+### 3. VS Code (Cline / Roo Code / Continue)
+
+In your extension's MCP configuration settings (`cline_mcp_settings.json` or `config.json`):
+
+```json
+{
+  "mcpServers": {
+    "wetrack": {
+      "url": "http://<YOUR_EC2_PUBLIC_IP>:8000/sse",
+      "transport": "sse"
+    }
+  }
+}
+```
+
+---
+
+### 4. Windsurf (Codeium)
+
+Add to `~/.codeium/windsurf/mcp_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "wetrack": {
+      "serverUrl": "http://<YOUR_EC2_PUBLIC_IP>:8000/sse"
+    }
+  }
+}
+```
+
+---
+
+### 5. ChatGPT
+
+#### Method A: Custom GPT Action (Easiest & Most Popular)
+1. In ChatGPT, click **Explore GPTs → + Create**.
+2. Go to the **Configure** tab → scroll down and click **Create new action**.
+3. Import or paste the schema from [`chatgpt-actions-schema.yaml`](./chatgpt-actions-schema.yaml).
+4. Configure Authentication (Bearer token or session cookie).
+5. Save the GPT — you can now manage WeTrack tickets and projects directly in ChatGPT web or mobile!
+
+#### Method B: ChatGPT Developer Mode (MCP)
+1. Open ChatGPT **Settings → Developer Mode / Connectors**.
+2. Select **Add MCP Server** and enter your EC2 HTTPS URL.
+
+---
+
+### 6. Python & LangChain AI Agents
+
+Integrate WeTrack tools directly into custom LangChain / LangGraph workflows:
+
+```python
+from langchain_mcp_adapters.client import MultiServerMCPClient
+from langgraph.prebuilt import create_react_agent
+
+async with MultiServerMCPClient(
+    {"wetrack": {"url": "http://<YOUR_EC2_PUBLIC_IP>:8000/sse", "transport": "sse"}}
+) as client:
+    tools = client.get_tools()
+    agent = create_react_agent(model, tools)
+    response = await agent.ainvoke({"messages": "List open tickets in WeTrack"})
+```
 
 ---
 
