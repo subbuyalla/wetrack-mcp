@@ -26,9 +26,9 @@ COPY src/ ./src/
 # Expose MCP SSE port
 EXPOSE 8000
 
-# Health check endpoint
+# Health check (uses python urllib to check HTTP 200 without hanging on SSE stream)
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8000/sse || exit 1
+    CMD python -c "import urllib.request; resp = urllib.request.urlopen('http://127.0.0.1:8000/sse', timeout=3); exit(0 if resp.status == 200 else 1)" || exit 1
 
 # Start the MCP server
 CMD ["python", "-m", "wetrack_mcp.server"]
