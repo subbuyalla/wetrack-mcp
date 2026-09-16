@@ -20,11 +20,11 @@ class Config:
     OAUTH_ENABLED: bool = os.getenv("OAUTH_ENABLED", "true" if os.getenv("MCP_TRANSPORT") in ("sse", "streamable-http") else "false").lower() in ("true", "1", "yes")
     OAUTH_ISSUER_URL: str = os.getenv(
         "OAUTH_ISSUER_URL",
-        "https://login.microsoftonline.com/organizations/v2.0",
+        "https://login.microsoftonline.com/9f1b09f9-3d22-48d9-b96c-8f145c22df61/v2.0",
     ).rstrip("/")
     OAUTH_JWKS_URI: str = os.getenv(
         "OAUTH_JWKS_URI",
-        "https://login.microsoftonline.com/organizations/discovery/v2.0/keys",
+        "https://login.microsoftonline.com/9f1b09f9-3d22-48d9-b96c-8f145c22df61/discovery/v2.0/keys",
     )
     OAUTH_AUDIENCE: str = os.getenv("OAUTH_AUDIENCE", "47722668-aafe-422a-a167-10c32d67c2f0")
     
