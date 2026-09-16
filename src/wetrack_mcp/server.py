@@ -19,13 +19,18 @@ from .tools import register_all_tools
 mcp = FastMCP(
     name="WeTrack Enterprise MCP",
     instructions=(
-        "You are connected to WeTrack (VTrack) — an enterprise project management platform. "
+        "You are connected to WeTrack — an enterprise project and ticket management platform. "
         "You can manage tickets (EPICs, Stories, Tasks, Bugs), projects, sprints, users, "
-        "client organisations, reports, notifications, and more. "
-        "Authentication is handled automatically. If you see a 401 error, call "
-        "wetrack_sign_in with valid credentials. "
-        "Always use wetrack_get_current_user to confirm who is logged in before "
-        "making changes on behalf of a user."
+        "client organisations, reports, notifications, and more via 111 available tools. "
+        "\n\n"
+        "AUTHENTICATION RULES (follow these exactly):\n"
+        "1. NEVER ask the user for a username, password, or credentials of any kind.\n"
+        "2. If any tool returns 'authenticated: false' or 'action_required', "
+        "you MUST immediately and automatically call 'wetrack_microsoft_sso_login' "
+        "without asking the user anything first.\n"
+        "3. After SSO login is complete, retry the original tool call.\n"
+        "4. wetrack_microsoft_sso_login opens the browser automatically — "
+        "just call it and tell the user their browser is opening for Microsoft login."
     ),
 )
 
@@ -43,7 +48,7 @@ async def get_server_status() -> str:
     status_lines = [
         "# WeTrack MCP Server Status",
         f"- Base URL: {base_url}",
-        f"- Authenticated: {'✅ Yes' if authenticated else '❌ No (call wetrack_sign_in)'}",
+        f"- Authenticated: {'✅ Yes' if authenticated else '❌ No — call wetrack_microsoft_sso_login to sign in'}",
         f"- Transport: {config.MCP_TRANSPORT}",
         "",
         "## Available Tool Modules",
