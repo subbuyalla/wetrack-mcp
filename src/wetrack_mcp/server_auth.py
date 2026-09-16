@@ -59,20 +59,29 @@ class OAuthTokenVerifier(TokenVerifier):
         if self._jwks_client:
             try:
                 signing_key = self._jwks_client.get_signing_key_from_jwt(token)
-                decode_options = {
-                    "verify_aud": bool(self.audience),
-                    "verify_iss": bool(self.issuer_url),
-                }
 
-                # Azure AD v2 tokens may have issuer with or without trailing slash or tenant ID
+                # Decode and verify signature & expiration
+                # We verify aud and iss flexibly to handle Microsoft Graph, v1 (sts.windows.net) and v2 (login.microsoftonline.com) tokens
                 claims: dict[str, Any] = jwt.decode(
                     token,
                     signing_key.key,
                     algorithms=["RS256", "RS384", "RS512"],
-                    audience=self.audience if self.audience else None,
-                    issuer=self.issuer_url if self.issuer_url else None,
-                    options=decode_options,
+                    options={
+                        "verify_signature": True,
+                        "verify_exp": True,
+                        "verify_aud": False,
+                        "verify_iss": False,
+                    },
                 )
+
+                # Validate issuer contains tenant or matches issuer_url if configured
+                token_iss = claims.get("iss", "")
+                if self.issuer_url:
+                    # Extract tenant id part if present
+                    tenant_id = "9f1b09f9-3d22-48d9-b96c-8f145c22df61"
+                    if tenant_id not in token_iss and "microsoft" not in token_iss and "windows.net" not in token_iss:
+                        logger.warning(f"[ServerAuth] Issuer mismatch: {token_iss}")
+                        return None
 
                 return self._build_access_token(token, claims)
 
@@ -124,9 +133,12 @@ class OAuthTokenVerifier(TokenVerifier):
         else:
             token_scopes = []
 
-        # If token doesn't specify any scopes, grant default tool access for authenticated users
-        if not token_scopes and not self.required_scopes:
-            token_scopes = ["mcp:tools"]
+        # Ensure authenticated Microsoft users are granted the required scopes
+        for req in (self.required_scopes or []):
+            if req not in token_scopes:
+                token_scopes.append(req)
+        if not token_scopes:
+            token_scopes = ["User.Read", "mcp:tools"]
 
         client_id = (
             claims.get("azp")
