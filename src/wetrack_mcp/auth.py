@@ -1,4 +1,13 @@
-"""Authentication manager — handles sign-in, token storage, and auto-refresh."""
+"""Authentication manager — handles sign-in, token storage, and auto-refresh.
+
+Authentication priority:
+  1. SSO token set via wetrack_microsoft_sso_login (recommended for production)
+  2. Pre-set WETRACK_TOKEN env var (optional, for scripted/headless use)
+  3. Email + password via WETRACK_EMAIL / WETRACK_PASSWORD (optional fallback)
+
+If none of the above are configured, tools will prompt the user to run
+wetrack_microsoft_sso_login to authenticate via Microsoft SSO.
+"""
 
 import httpx
 from .config import config
@@ -123,14 +132,34 @@ class AuthManager:
         return result
 
     async def ensure_authenticated(self) -> None:
-        """Auto-login using .env credentials if no token is present."""
-        if not self._token:
+        """
+        Ensure a valid token is present before making API calls.
+
+        Priority:
+          1. Token already set (via SSO or wetrack_set_token) → use it.
+          2. Email + password in .env → auto-login silently.
+          3. Neither → raise a clear SSO prompt instead of a cryptic error.
+        """
+        if self._token:
+            return
+
+        # Fallback: try email/password if configured
+        if config.EMAIL and config.PASSWORD:
             result = await self.sign_in()
             if not result.get("success"):
                 raise RuntimeError(
                     f"WeTrack auto-login failed: {result.get('message')}. "
                     "Check WETRACK_EMAIL and WETRACK_PASSWORD in your .env file."
                 )
+            return
+
+        # No credentials at all → guide user to SSO
+        raise RuntimeError(
+            "Not authenticated. "
+            "Please run the 'wetrack_microsoft_sso_login' tool to sign in with "
+            "your Microsoft account, or set WETRACK_EMAIL + WETRACK_PASSWORD in "
+            "your .env file for email/password login."
+        )
 
 
 # Singleton — shared across all tool modules
