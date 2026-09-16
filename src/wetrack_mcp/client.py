@@ -28,7 +28,20 @@ async def make_request(
     """
     # Ensure we have a token before the first real call
     if auto_login and not auth_manager.is_authenticated():
-        await auth_manager.ensure_authenticated()
+        try:
+            await auth_manager.ensure_authenticated()
+        except RuntimeError:
+            # Not authenticated and no credentials — guide user to SSO
+            return {
+                "success": False,
+                "authenticated": False,
+                "message": (
+                    "⚠️ You are not signed in to WeTrack. "
+                    "Please call the 'wetrack_microsoft_sso_login' tool to sign in "
+                    "with your Microsoft account. Your browser will open automatically."
+                ),
+                "action_required": "Call wetrack_microsoft_sso_login to authenticate via Microsoft SSO.",
+            }
 
     # Remove None values from params
     if params:
@@ -70,22 +83,36 @@ async def make_request(
             cookies=cookies,
         )
 
-        # On 401 — attempt one re-login and retry
+        # On 401 — attempt one re-login and retry (only if email/password available)
         if response.status_code == 401 and auto_login:
-            login_result = await auth_manager.sign_in()
-            if login_result.get("success") and auth_manager.token:
-                headers["Authorization"] = f"Bearer {auth_manager.token}"
-                cookies = getattr(auth_manager, "_cookies", {})
-                response = await client.request(
-                    method=method.upper(),
-                    url=path,
-                    json=json,
-                    params=params,
-                    data=data,
-                    files=files,
-                    headers=headers,
-                    cookies=cookies,
-                )
+            from .config import config as cfg
+            if cfg.EMAIL and cfg.PASSWORD:
+                login_result = await auth_manager.sign_in()
+                if login_result.get("success") and auth_manager.token:
+                    headers["Authorization"] = f"Bearer {auth_manager.token}"
+                    cookies = getattr(auth_manager, "_cookies", {})
+                    response = await client.request(
+                        method=method.upper(),
+                        url=path,
+                        json=json,
+                        params=params,
+                        data=data,
+                        files=files,
+                        headers=headers,
+                        cookies=cookies,
+                    )
+            else:
+                # SSO token expired — ask user to re-authenticate
+                auth_manager.token = ""
+                return {
+                    "success": False,
+                    "authenticated": False,
+                    "message": (
+                        "⚠️ Your WeTrack session has expired. "
+                        "Please call 'wetrack_microsoft_sso_login' to sign in again."
+                    ),
+                    "action_required": "Call wetrack_microsoft_sso_login to re-authenticate.",
+                }
 
     return _normalize_response(response)
 
