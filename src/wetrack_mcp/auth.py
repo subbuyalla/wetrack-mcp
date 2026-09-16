@@ -21,14 +21,25 @@ class AuthManager:
 
     @property
     def token(self) -> str:
-        return self._token
+        return self.get_active_token()
 
     @token.setter
     def token(self, value: str):
         self._token = value
 
+    def get_active_token(self) -> str:
+        """Returns the active token: from request context (OAuth middleware) or stored token."""
+        try:
+            from mcp.server.auth.middleware.auth_context import auth_context_var
+            user = auth_context_var.get(None)
+            if user and hasattr(user, "access_token") and getattr(user.access_token, "token", None):
+                return user.access_token.token
+        except Exception:
+            pass
+        return self._token
+
     def is_authenticated(self) -> bool:
-        return bool(self._token)
+        return bool(self.get_active_token())
 
     async def sign_in(self, email: str | None = None, password: str | None = None) -> dict:
         """

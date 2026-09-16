@@ -10,10 +10,26 @@ Auth:      Bearer JWT, auto-login from .env credentials
 
 import asyncio
 import sys
+from pydantic import AnyHttpUrl
 from mcp.server.mcpserver import MCPServer as FastMCP
+from mcp.server.auth.settings import AuthSettings
 from .config import config
 from .auth import auth_manager
+from .server_auth import OAuthTokenVerifier
 from .tools import register_all_tools
+
+# ── Configure Server-Side OAuth 2.1 Auth (RFC 9470 Protected Resource) ────────
+server_auth_settings = None
+server_token_verifier = None
+
+if config.OAUTH_ENABLED:
+    server_auth_settings = AuthSettings(
+        issuer_url=AnyHttpUrl(config.OAUTH_ISSUER_URL),
+        resource_server_url=AnyHttpUrl(config.RESOURCE_SERVER_URL),
+        required_scopes=config.OAUTH_REQUIRED_SCOPES,
+        validate_token_resource=False,
+    )
+    server_token_verifier = OAuthTokenVerifier()
 
 # ── Create the MCP server ─────────────────────────────────────────────────────
 mcp = FastMCP(
@@ -32,6 +48,8 @@ mcp = FastMCP(
         "4. wetrack_microsoft_sso_login opens the browser automatically — "
         "just call it and tell the user their browser is opening for Microsoft login."
     ),
+    auth=server_auth_settings,
+    token_verifier=server_token_verifier,
 )
 
 # ── Register all tool modules ─────────────────────────────────────────────────
@@ -103,6 +121,12 @@ def main():
 
     print(f"[WeTrack MCP] Starting on transport: {config.MCP_TRANSPORT}", file=sys.stderr)
     print(f"[WeTrack MCP] Base URL: {config.BASE_URL}", file=sys.stderr)
+    if config.OAUTH_ENABLED:
+        print(f"[WeTrack MCP] 🔐 Server-side OAuth 2.1: ENABLED (RFC 9470 Protected Resource)", file=sys.stderr)
+        print(f"[WeTrack MCP] 🔐 Issuer: {config.OAUTH_ISSUER_URL}", file=sys.stderr)
+        print(f"[WeTrack MCP] 🔐 Metadata: {config.RESOURCE_SERVER_URL}/.well-known/oauth-protected-resource", file=sys.stderr)
+    else:
+        print(f"[WeTrack MCP] 🔓 Server-side OAuth 2.1: DISABLED", file=sys.stderr)
 
     if config.MCP_TRANSPORT == "sse":
         mcp.run(transport="sse", host=config.MCP_HOST, port=config.MCP_PORT)
