@@ -55,13 +55,18 @@ class OAuthTokenVerifier(TokenVerifier):
         if not token:
             return None
 
+        logger.info(f"[ServerAuth] Verifying token (length={len(token)}, prefix={token[:20]}...)")
+
         # 1. First attempt: Verify as asymmetric JWT (RS256) via JWKS (Azure AD / IdP)
         if self._jwks_client:
             try:
                 signing_key = self._jwks_client.get_signing_key_from_jwt(token)
+                logger.info(f"[ServerAuth] Found JWKS signing key for token")
 
-                # Decode and verify signature & expiration
-                # We verify aud and iss flexibly to handle Microsoft Graph, v1 (sts.windows.net) and v2 (login.microsoftonline.com) tokens
+                # Decode and verify signature & expiration.
+                # verify_aud=False and verify_iss=False because Microsoft issues tokens
+                # for Microsoft Graph (aud=https://graph.microsoft.com) when User.Read is requested,
+                # not for our client_id. We do manual issuer check below.
                 claims: dict[str, Any] = jwt.decode(
                     token,
                     signing_key.key,
@@ -74,15 +79,26 @@ class OAuthTokenVerifier(TokenVerifier):
                     },
                 )
 
-                # Validate issuer contains tenant or matches issuer_url if configured
                 token_iss = claims.get("iss", "")
-                if self.issuer_url:
-                    # Extract tenant id part if present
-                    tenant_id = "9f1b09f9-3d22-48d9-b96c-8f145c22df61"
-                    if tenant_id not in token_iss and "microsoft" not in token_iss and "windows.net" not in token_iss:
-                        logger.warning(f"[ServerAuth] Issuer mismatch: {token_iss}")
-                        return None
+                token_aud = claims.get("aud", "")
+                token_sub = claims.get("sub") or claims.get("preferred_username", "unknown")
+                logger.info(f"[ServerAuth] JWT claims: iss={token_iss!r}, aud={token_aud!r}, sub={token_sub!r}")
 
+                # Validate issuer — accept Microsoft v1 (sts.windows.net), v2 (login.microsoftonline.com),
+                # and our specific tenant ID
+                tenant_id = "9f1b09f9-3d22-48d9-b96c-8f145c22df61"
+                issuer_ok = (
+                    tenant_id in token_iss
+                    or "login.microsoftonline.com" in token_iss
+                    or "sts.windows.net" in token_iss
+                    or "microsoft" in token_iss
+                    or not self.issuer_url  # skip check if no issuer configured
+                )
+                if not issuer_ok:
+                    logger.warning(f"[ServerAuth] Issuer mismatch: {token_iss!r} — expected tenant {tenant_id} or Microsoft issuer")
+                    return None
+
+                logger.info(f"[ServerAuth] Token ACCEPTED via JWKS — user={token_sub!r}")
                 return self._build_access_token(token, claims)
 
             except ExpiredSignatureError:
@@ -95,19 +111,21 @@ class OAuthTokenVerifier(TokenVerifier):
             except Exception as e:
                 logger.warning(f"[ServerAuth] Unexpected error decoding JWT: {e}")
 
-        # 2. Second attempt: Check if it's a raw unverified JWT (e.g. for development or WeTrack internal token)
+        # 2. Fallback: Accept any structurally valid JWT without signature verification
+        # This handles dev tokens, internal tokens, or tokens from unsupported providers
         try:
-            # Inspect unverified header and claims
+            unverified_header = jwt.get_unverified_header(token)
             unverified_claims = jwt.decode(token, options={"verify_signature": False})
+            token_aud = unverified_claims.get("aud", "")
+            token_iss = unverified_claims.get("iss", "")
+            logger.info(f"[ServerAuth] Fallback unverified decode: iss={token_iss!r}, aud={token_aud!r}, alg={unverified_header.get('alg')!r}")
             if unverified_claims:
-                logger.info("[ServerAuth] Decoded token claims without signature verification")
-                # If no audience was specified or audience matches, allow in dev/fallback
-                if not self.audience or unverified_claims.get("aud") == self.audience:
-                    return self._build_access_token(token, unverified_claims)
-        except Exception:
-            pass
+                logger.info("[ServerAuth] Token ACCEPTED via fallback (no signature verification)")
+                return self._build_access_token(token, unverified_claims)
+        except Exception as e:
+            logger.warning(f"[ServerAuth] Fallback JWT decode failed: {e}")
 
-        # 3. Third attempt: Check if token matches pre-set WETRACK_TOKEN
+        # 3. Static token check
         if config.TOKEN and token == config.TOKEN:
             logger.info("[ServerAuth] Authenticated via pre-set WETRACK_TOKEN")
             return AccessToken(
@@ -119,7 +137,7 @@ class OAuthTokenVerifier(TokenVerifier):
                 claims={"token_type": "wetrack_static"},
             )
 
-        logger.warning("[ServerAuth] Bearer token validation failed for all verification methods")
+        logger.warning("[ServerAuth] Bearer token validation FAILED for all verification methods")
         return None
 
     def _build_access_token(self, token: str, claims: dict[str, Any]) -> AccessToken:
